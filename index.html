@@ -78,6 +78,7 @@ h1 { margin: 4px 0 0; font-size: 34px; font-weight: 400; letter-spacing: -.035em
 .b.pri { background: var(--acc); border-color: var(--acc); color: #fff; }
 .b.ink { background: var(--ink); border-color: var(--ink); color: var(--bg); }
 .b.mut { color: var(--muted); }
+.tgb .back, .tgb .bk { display: none; }
 .b.w2 { grid-column: 1 / -1; }
 .b:disabled { opacity: .6; }
 
@@ -455,8 +456,8 @@ function quickDates(c) {
   return out;
 }
 function openSheet(step, id) {
-  if (id) S.sl = id; var c = byId(S.sl); if (!c) return;
-  var h = '<div class="grab"></div>', back = '<button class="b mut" style="margin-top:12px" data-sheet="main">‹ назад</button>';
+  if (id) S.sl = id; var c = byId(S.sl); if (!c) return; S.step = step || 'main';
+  var h = '<div class="grab"></div>', back = '<button class="b mut bk" style="margin-top:12px" data-sheet="main">‹ назад</button>';
   if (step === 'lost') {
     h += '<h3>Чому втрачено?</h3><div class="s13">' + esc(c.n) + ' · без причини не закриємо</div><div class="chips">' + S.d.dicts.loss.map(function (r) { return '<button data-lost="' + esc(r) + '">' + esc(r) + '</button>'; }).join('') + '</div>' + back;
   } else if (step === 'date') {
@@ -485,7 +486,7 @@ function act(kind, label, extra) {
   send(srv, id, ex);
 }
 function openActual() {
-  var xs = leads().filter(function (l) { return l.st === 'Продаж' && !l.cur && !S.actd[l.id]; });
+  S.step = 'actual'; var xs = leads().filter(function (l) { return l.st === 'Продаж' && !l.cur && !S.actd[l.id]; });
   var h = '<div class="grab"></div><h3>З ким ще працюємо?</h3><div class="s13">у CRM стоять у «Продаж». Хвилина, і цифри стануть чесними</div>';
   h += xs.length ? xs.map(function (l) { return '<div class="act1"><div><b>' + esc(l.n) + (l.co && l.co !== l.n ? ' · ' + esc(l.co) : '') + '</b>' + (l.c ? '<span>' + esc(l.c) + '</span>' : '') + '</div><div class="two"><button class="b" data-keep="' + l.id + '">працюємо</button><button class="b mut" data-base="' + l.id + '">вже ні → база</button></div></div>'; }).join('') : empty('готово', 'Клієнти в CRM збігаються з реальністю.');
   document.getElementById('sheetIn').innerHTML = h;
@@ -730,7 +731,7 @@ function vSales() {
 }
 var TGW = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData ? window.Telegram.WebApp : null;
 function tgBack() { if (!TGW || !TGW.BackButton) return; try { if (S.lead || S.more) TGW.BackButton.show(); else TGW.BackButton.hide(); } catch (e) { } }
-function goBack() { if (S.more) { closeSheet(); if (S.d && !S.lead) render(true); return; } if (S.lead) { S.lead = null; render(); } }
+function goBack() { if (S.more) { if (!S.lead && (S.step === 'lost' || S.step === 'date')) return openSheet('main'); S.afterLost = null; closeSheet(); if (S.d && !S.lead) render(true); return; } if (S.lead) { S.lead = null; render(); } }
 function render(keep) { tgBack(); nav(); if (S.lead) return vLead(); if (S.tab === 'today') vToday(keep); else if (S.tab === 'leads') vLeads(keep); else if (S.tab === 'stats') vStats(keep); else vSales(keep); }
 document.getElementById('shade').addEventListener('click', function () { closeSheet(); if (S.d && !S.lead) render(true); });
 document.addEventListener('click', function (e) {
@@ -800,7 +801,7 @@ function start(hash) {
     try { if (TGW.colorScheme) document.documentElement.classList.toggle('dark', TGW.colorScheme === 'dark'); } catch (e) { }
     try { TGW.ready(); TGW.expand(); } catch (e) { }
     try { if (TGW.isVersionAtLeast && TGW.isVersionAtLeast('7.7') && TGW.disableVerticalSwipes) TGW.disableVerticalSwipes(); } catch (e) { }
-    try { TGW.BackButton.onClick(goBack); } catch (e) { }
+    try { TGW.BackButton.onClick(goBack); document.documentElement.classList.add('tgb'); } catch (e) { }
   }
   if (!S.init) return noAccess('📊', 'Відкрий з Telegram', 'Кнопка «лідген» у чаті з ботом або закріп «📊 Лідген» у групі Follow up.', '');
   run('lgAppData', [S.init], function (d) {
