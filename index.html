@@ -245,6 +245,7 @@ h1 { margin: 4px 0 0; font-size: 34px; font-weight: 400; letter-spacing: -.035em
 <div class="shade" id="shade"></div>
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="Стан ліда"><div class="in" id="sheetIn"></div></div>
 <div class="toast" id="toast" role="status"></div>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script>
 var S = { init:'', d:null, tab:'today', seg:'work', focusQ:false, who:'Віка', lead:null, month:'', why:'stop', search:'', sl:null, busy:false, dragAt:0, more:false, handled:{}, pending:0, tclosed:{}, actd:{}, stp:'' };
 try { var t0 = localStorage.getItem('lg_tab'); if (/^(today|leads|stats|sales)$/.test(t0)) S.tab = t0; } catch (e) {}
@@ -472,7 +473,7 @@ function openSheet(step, id) {
       '<button class="b" style="margin-top:8px" data-lead="' + c.id + '">відкрити картку ліда</button>';
   }
   document.getElementById('sheetIn').innerHTML = h;
-  document.getElementById('sheet').classList.add('on'); document.getElementById('shade').classList.add('on'); S.more = true;
+  document.getElementById('sheet').classList.add('on'); document.getElementById('shade').classList.add('on'); S.more = true; tgBack();
   var di = document.getElementById('s-date'); if (di) di.addEventListener('change', function () { if (di.value) act('date', 'Пуш на ' + ddmm(isoDate(di.value)), di.value); });
 }
 function opt(k, cls, ic, t, s) { return '<button class="opt" data-opt="' + k + '"><span class="oi' + (cls ? ' ' + cls : '') + '">' + ic + '</span><span><b>' + t + '</b><span>' + s + '</span></span></button>'; }
@@ -488,9 +489,9 @@ function openActual() {
   var h = '<div class="grab"></div><h3>З ким ще працюємо?</h3><div class="s13">у CRM стоять у «Продаж». Хвилина, і цифри стануть чесними</div>';
   h += xs.length ? xs.map(function (l) { return '<div class="act1"><div><b>' + esc(l.n) + (l.co && l.co !== l.n ? ' · ' + esc(l.co) : '') + '</b>' + (l.c ? '<span>' + esc(l.c) + '</span>' : '') + '</div><div class="two"><button class="b" data-keep="' + l.id + '">працюємо</button><button class="b mut" data-base="' + l.id + '">вже ні → база</button></div></div>'; }).join('') : empty('готово', 'Клієнти в CRM збігаються з реальністю.');
   document.getElementById('sheetIn').innerHTML = h;
-  document.getElementById('sheet').classList.add('on'); document.getElementById('shade').classList.add('on'); S.more = true;
+  document.getElementById('sheet').classList.add('on'); document.getElementById('shade').classList.add('on'); S.more = true; tgBack();
 }
-function closeSheet() { document.getElementById('sheet').classList.remove('on'); document.getElementById('shade').classList.remove('on'); S.more = false; }
+function closeSheet() { document.getElementById('sheet').classList.remove('on'); document.getElementById('shade').classList.remove('on'); S.more = false; tgBack(); }
 var GORD = { later: 0, ign: 1, none: 2, stop: 3 };
 var SEGS = [
   ['work', 'у роботі', function (l) { return WORK.indexOf(l.st) >= 0; }],
@@ -727,8 +728,10 @@ function vSales() {
   h += sec('що зробити, щоб тут були гроші') + '<div class="list">' + (A.length ? A.join('') : empty('чисто', 'Чеки вписані, клієнти звірені.')) + '</div>';
   setApp(h);
 }
-
-function render(keep) { nav(); if (S.lead) return vLead(); if (S.tab === 'today') vToday(keep); else if (S.tab === 'leads') vLeads(keep); else if (S.tab === 'stats') vStats(keep); else vSales(keep); }
+var TGW = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData ? window.Telegram.WebApp : null;
+function tgBack() { if (!TGW || !TGW.BackButton) return; try { if (S.lead || S.more) TGW.BackButton.show(); else TGW.BackButton.hide(); } catch (e) { } }
+function goBack() { if (S.more) { closeSheet(); if (S.d && !S.lead) render(true); return; } if (S.lead) { S.lead = null; render(); } }
+function render(keep) { tgBack(); nav(); if (S.lead) return vLead(); if (S.tab === 'today') vToday(keep); else if (S.tab === 'leads') vLeads(keep); else if (S.tab === 'stats') vStats(keep); else vSales(keep); }
 document.getElementById('shade').addEventListener('click', function () { closeSheet(); if (S.d && !S.lead) render(true); });
 document.addEventListener('click', function (e) {
   if (!S.d) return;
@@ -792,6 +795,13 @@ function start(hash) {
   var m = /(?:^|&)tgWebAppData=(.*?)(?=&tgWebApp[A-Za-z]+=|$)/.exec(h), raw = m ? m[1] : '';
   S.init = /%3D|%26/i.test(raw) ? decodeURIComponent(raw) : raw;
   try { var th = JSON.parse(q.get('tgWebAppThemeParams') || '{}'); if (th.bg_color) document.documentElement.classList.toggle('dark', lum(th.bg_color) < .5); } catch (e) { }
+  if (TGW) {
+    if (!S.init) S.init = TGW.initData;
+    try { if (TGW.colorScheme) document.documentElement.classList.toggle('dark', TGW.colorScheme === 'dark'); } catch (e) { }
+    try { TGW.ready(); TGW.expand(); } catch (e) { }
+    try { if (TGW.isVersionAtLeast && TGW.isVersionAtLeast('7.7') && TGW.disableVerticalSwipes) TGW.disableVerticalSwipes(); } catch (e) { }
+    try { TGW.BackButton.onClick(goBack); } catch (e) { }
+  }
   if (!S.init) return noAccess('📊', 'Відкрий з Telegram', 'Кнопка «лідген» у чаті з ботом або закріп «📊 Лідген» у групі Follow up.', '');
   run('lgAppData', [S.init], function (d) {
     if (!d || !d.ok) {
