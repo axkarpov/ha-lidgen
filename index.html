@@ -303,9 +303,19 @@ function ini(n) { return esc(String(n || '').replace(/^[@*\s«"]+/, '').charAt(0
 var IG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg>';
 var DM = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M21 3L10 14M21 3l-7 18-4-7-7-4z"/></svg>';
 function ext(url, cls, inner) { return '<a class="' + cls + '" href="' + esc(url) + '" target="_blank" rel="noopener">' + inner + '</a>'; }
+var CK = '';
+function initGet(init, k) { try { return new URLSearchParams(init).get(k) || ''; } catch (e) { return ''; } }
+function uidOf(init) { try { var u = JSON.parse(initGet(init, 'user') || '{}'); return u && u.id ? String(u.id) : ''; } catch (e) { return ''; } }
+function cacheGet() {
+  if (!CK || Date.now() / 1000 - (Number(initGet(S.init, 'auth_date')) || 0) > 86000) return null;
+  try { var c = JSON.parse(localStorage.getItem(CK) || 'null'); if (c && c.d && c.d.ok && c.d.iso === isoOf(new Date()) && 12 * 3600000 > Date.now() - c.t) return c; } catch (e) { }
+  return null;
+}
+function cachePut(d) { if (!CK || !d || !d.ok) return; try { localStorage.setItem(CK, JSON.stringify({ t: Date.now(), d: d })); } catch (e) { } }
+function cacheDrop() { if (!CK) return; try { localStorage.removeItem(CK); } catch (e) { } }
 function apply(d) {
   if (!d || !d.ok) return;
-  S.d = d;
+  S.d = d; S.stale = false; cachePut(d);
   Object.keys(S.handled).forEach(function (id) { var l = byId(id); if (!l || !l.today) delete S.handled[id]; });
   if (S.lead || S.more) return nav();
   var y = window.scrollY; render(true); window.scrollTo(0, y);
@@ -804,16 +814,22 @@ function start(hash) {
     try { TGW.BackButton.onClick(goBack); document.documentElement.classList.add('tgb'); } catch (e) { }
   }
   if (!S.init) return noAccess('📊', 'Відкрий з Telegram', 'Кнопка «лідген» у чаті з ботом або закріп «📊 Лідген» у групі Follow up.', '');
+  var u = uidOf(S.init); CK = u ? 'lg_d_' + u : '';
+  var c = cacheGet();
+  if (c) { S.d = c.d; S.stale = true; S.who = c.d.me && c.d.me.who === 'Алекс' ? 'Алекс' : 'Віка'; document.querySelector('nav').hidden = false; render(); }
   run('lgAppData', [S.init], function (d) {
     if (!d || !d.ok) {
+      cacheDrop(); S.d = null; S.stale = false;
       if (d && d.why === 'user') return noAccess('🔒', 'Тільки для команди продажів', 'Доступ мають учасники групи Follow up & Home Agency. Попроси Алекса додати тебе.', '');
       if (d && d.why === 'old') return noAccess('⏱', 'Вхід застарів', 'Вхід діє один день. Закрий застосунок і відкрий ще раз з Telegram.', '');
       return noAccess('⚠', 'Не вийшло увійти', 'Закрий застосунок і відкрий ще раз з Telegram.', d && (d.err || d.why) || '');
     }
-    S.d = d; S.who = d.me && d.me.who === 'Алекс' ? 'Алекс' : 'Віка';
+    S.who = d.me && d.me.who === 'Алекс' ? 'Алекс' : 'Віка';
     document.querySelector('nav').hidden = false;
+    if (c) { if (S.pending || S.busy) { S.d = d; S.stale = false; cachePut(d); } else apply(d); return; }
+    S.d = d; S.stale = false; cachePut(d);
     render();
-  }, function () { noAccess('⚠', 'Не завантажилось', 'Немає зв\'язку з таблицею. Закрий і відкрий ще раз.', ''); });
+  }, function () { if (c) return toast('Немає зв\'язку з таблицею. Показую дані з ' + new Date(c.t).toTimeString().slice(0, 5), 3200); noAccess('⚠', 'Не завантажилось', 'Немає зв\'язку з таблицею. Закрий і відкрий ще раз.', ''); });
 }
 if (window.google && google.script && google.script.url) google.script.url.getLocation(function (loc) { start(loc.hash); });
 else start(location.hash);
